@@ -45,7 +45,7 @@ jobs:
       BENCHMARK_SUITE: ${{ inputs.suite || (github.event_name == 'pull_request' && 'smoke') || 'full' }}
       BENCHMARK_ITERATIONS: ${{ inputs.iterations || (github.event_name == 'pull_request' && 8) || 30 }}
       BENCHMARK_WARMUPS: ${{ github.event_name == 'pull_request' && 2 || 5 }}
-      BENCHMARK_OUTPUT: benchmark-results/${{ runner.os }}-${{ matrix.browser }}.json
+      BENCHMARK_OUTPUT: benchmark-results/${{ matrix.os }}-${{ matrix.browser }}.json
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
