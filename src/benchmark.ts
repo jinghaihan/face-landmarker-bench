@@ -110,7 +110,7 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<BenchmarkRe
   }
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     createdAt: new Date().toISOString(),
     sdkVersion: SDK_VERSION,
     model: { url: MODEL_SOURCE_URL, sha256: MODEL_SHA256 },

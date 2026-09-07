@@ -7,12 +7,14 @@ export function summarize(values: number[]): Distribution {
   const percentile = (value: number): number => sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * value))] ?? 0
   return {
     count: values.length,
+    totalMs: round(values.reduce((sum, value) => sum + value, 0)),
     meanMs: round(values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1)),
     p50Ms: round(percentile(0.5)),
     p95Ms: round(percentile(0.95)),
     p99Ms: round(percentile(0.99)),
     minMs: round(sorted[0] ?? 0),
     maxMs: round(sorted[sorted.length - 1] ?? 0),
+    samplesMs: values.map(round),
   }
 }
 

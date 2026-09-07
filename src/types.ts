@@ -12,12 +12,14 @@ export interface RendererInfo {
 
 export interface Distribution {
   count: number
+  totalMs: number
   meanMs: number
   p50Ms: number
   p95Ms: number
   p99Ms: number
   minMs: number
   maxMs: number
+  samplesMs: number[]
 }
 
 export interface CaseResult {
@@ -46,7 +48,7 @@ export interface ModeResult {
 }
 
 export interface BenchmarkReport {
-  schemaVersion: 1
+  schemaVersion: 2
   createdAt: string
   sdkVersion: string
   model: { url: string, sha256: string }

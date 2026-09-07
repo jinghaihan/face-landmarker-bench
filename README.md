@@ -46,8 +46,8 @@ Pull requests and pushes run the smoke suite on Chromium, Firefox, and WebKit ac
 
 Each matrix job uploads raw JSON. The report job combines those files into the `benchmark-report` artifact:
 
-- `summary.md` — compact compatibility and performance tables
-- `index.html` — standalone report for local viewing
+- `summary.md` — conclusions, compatibility, and performance tables
+- `index.html` — standalone report with the same conclusions at the top
 - `results.json` — complete machine-readable aggregate
 
 The Markdown summary is also written to the GitHub Actions Job Summary.
