@@ -23,9 +23,9 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -42,14 +42,14 @@ jobs:
         browser: [chromium, firefox, webkit]
     runs-on: ${{ matrix.os }}
     env:
-      BENCHMARK_SUITE: ${{ inputs.suite || (github.event_name == 'pull_request' && 'smoke') || 'full' }}
-      BENCHMARK_ITERATIONS: ${{ inputs.iterations || (github.event_name == 'pull_request' && 8) || 30 }}
-      BENCHMARK_WARMUPS: ${{ github.event_name == 'pull_request' && 2 || 5 }}
+      BENCHMARK_SUITE: ${{ github.event_name == 'workflow_dispatch' && inputs.suite || 'smoke' }}
+      BENCHMARK_ITERATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.iterations || 8 }}
+      BENCHMARK_WARMUPS: ${{ github.event_name == 'workflow_dispatch' && 5 || 2 }}
       BENCHMARK_OUTPUT: benchmark-results/${{ matrix.os }}-${{ matrix.browser }}.json
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -60,7 +60,7 @@ jobs:
       - run: pnpm run build
       - run: pnpm exec playwright test tests/benchmark.spec.ts --project=${{ matrix.browser }}
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: raw-${{ runner.os }}-${{ matrix.browser }}
           path: benchmark-results/*.json
@@ -72,21 +72,21 @@ jobs:
     needs: benchmark
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: raw-*
           path: benchmark-results
           merge-multiple: true
       - run: pnpm run report
       - run: cat report/summary.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: benchmark-report
           path: report/

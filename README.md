@@ -42,7 +42,7 @@ Every run records initialization time, inference and end-to-end P50/P95/P99, obs
 
 ## CI reports
 
-Pull requests run Chromium on Ubuntu, Windows, and macOS. Pushes, scheduled runs, and manual runs expand the matrix to Chromium, Firefox, and WebKit across all three operating systems.
+Pull requests and pushes run the smoke suite on Chromium, Firefox, and WebKit across Ubuntu, Windows, and macOS. Manual runs can select the full suite and iteration count.
 
 Each matrix job uploads raw JSON. The report job combines those files into the `benchmark-report` artifact:
 

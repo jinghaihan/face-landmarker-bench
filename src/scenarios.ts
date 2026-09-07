@@ -30,10 +30,24 @@ function context(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
 }
 
 function drawCover(ctx: CanvasRenderingContext2D, image: ImageBitmap, x: number, y: number, width: number, height: number): void {
-  const scale = Math.max(width / image.width, height / image.height)
-  const drawWidth = image.width * scale
-  const drawHeight = image.height * scale
-  ctx.drawImage(image, x + (width - drawWidth) / 2, y + (height - drawHeight) / 2, drawWidth, drawHeight)
+  const targetAspect = width / height
+  const sourceAspect = image.width / image.height
+  let sourceX = 0
+  let sourceY = 0
+  let sourceWidth = image.width
+  let sourceHeight = image.height
+
+  if (sourceAspect > targetAspect) {
+    sourceWidth = image.height * targetAspect
+    sourceX = (image.width - sourceWidth) / 2
+  }
+  else {
+    sourceHeight = image.width / targetAspect
+    // Keep the upper part of portrait fixtures in frame, where the face is.
+    sourceY = Math.min(image.height - sourceHeight, Math.max(0, image.height * 0.22 - sourceHeight / 2))
+  }
+
+  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height)
 }
 
 function portraitScenario(images: Images, width: number, height: number): Scenario {
