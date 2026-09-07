@@ -1,0 +1,5 @@
+export const SDK_VERSION = '1.0.1'
+export const MODEL_URL = '/runtime-assets/models/face_landmarker.task'
+export const MODEL_SOURCE_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
+export const MODEL_SHA256 = '64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff'
+export const WASM_URL = '/runtime-assets/wasm'

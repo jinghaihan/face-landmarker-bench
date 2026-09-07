@@ -1,0 +1,94 @@
+name: Face Landmarker benchmark
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: Benchmark suite
+        type: choice
+        options: [smoke, full]
+        default: full
+      iterations:
+        description: Measured iterations per case
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm run build
+
+  benchmark:
+    if: github.event_name != 'pull_request' || matrix.browser == 'chromium'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        browser: [chromium, firefox, webkit]
+    runs-on: ${{ matrix.os }}
+    env:
+      BENCHMARK_SUITE: ${{ inputs.suite || (github.event_name == 'pull_request' && 'smoke') || 'full' }}
+      BENCHMARK_ITERATIONS: ${{ inputs.iterations || (github.event_name == 'pull_request' && 8) || 30 }}
+      BENCHMARK_WARMUPS: ${{ github.event_name == 'pull_request' && 2 || 5 }}
+      BENCHMARK_OUTPUT: benchmark-results/${{ runner.os }}-${{ matrix.browser }}.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - if: runner.os == 'Linux'
+        run: pnpm exec playwright install-deps ${{ matrix.browser }}
+      - run: pnpm exec playwright install ${{ matrix.browser }}
+      - run: pnpm run build
+      - run: pnpm exec playwright test tests/benchmark.spec.ts --project=${{ matrix.browser }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raw-${{ runner.os }}-${{ matrix.browser }}
+          path: benchmark-results/*.json
+          if-no-files-found: warn
+          retention-days: 30
+
+  report:
+    if: always()
+    needs: benchmark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: raw-*
+          path: benchmark-results
+          merge-multiple: true
+      - run: pnpm run report
+      - run: cat report/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report
+          path: report/
+          retention-days: 90

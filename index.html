@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>Face Landmarker Bench</title>
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">MediaPipe Tasks Vision · Web</p>
+        <h1>Face Landmarker Bench</h1>
+        <p>CPU/GPU × main thread/worker compatibility and performance.</p>
+      </header>
+      <section class="controls">
+        <label>Suite <select id="suite"><option value="smoke">Smoke</option><option value="full">Full</option></select></label>
+        <label>Warmups <input id="warmups" type="number" min="0" value="3" /></label>
+        <label>Iterations <input id="iterations" type="number" min="1" value="15" /></label>
+        <button id="run" type="button">Run benchmark</button>
+      </section>
+      <section id="status" class="status">Ready</section>
+      <section id="summary"></section>
+      <details>
+        <summary>Raw JSON</summary>
+        <pre id="raw">No results yet.</pre>
+      </details>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

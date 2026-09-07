@@ -1,0 +1,8 @@
+node_modules/
+dist/
+playwright-report/
+test-results/
+benchmark-results/
+report/
+public/runtime-assets/
+.DS_Store

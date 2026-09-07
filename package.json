@@ -1,0 +1,33 @@
+{
+  "name": "face-landmarker-bench",
+  "type": "module",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "description": "Cross-platform benchmark for MediaPipe Face Landmarker on the web",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare-assets": "node scripts/prepare-assets.mjs",
+    "dev": "pnpm run prepare-assets && vite",
+    "build": "pnpm run prepare-assets && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "pnpm run build && playwright test",
+    "test:benchmark": "pnpm run build && playwright test tests/benchmark.spec.ts",
+    "report": "node scripts/build-report.mjs"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.0.1"
+  },
+  "devDependencies": {
+    "@octohash/eslint-config": "0.6.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.4.1",
+    "eslint": "10.10.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.6"
+  }
+}
