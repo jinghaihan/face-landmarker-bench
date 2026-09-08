@@ -1,8 +1,8 @@
+import type { BenchmarkEngine } from './engine'
 import type { Scenario } from './scenarios'
 import type { BenchmarkReport, CaseResult, Delegate, ExecutionLocation, FaceMeshBaselineResult, ModeId, ModeResult, RunningMode } from './types'
 import { MODEL_SHA256, MODEL_SOURCE_URL, MODEL_URL, SDK_VERSION } from './constants'
 import { createEngine } from './engine'
-import { createFaceMeshEngine } from './face-mesh-engine'
 import { compareCase } from './landmark-comparison'
 import { inspectRenderer, summarize } from './metrics'
 import { createScenarios } from './scenarios'
@@ -123,8 +123,9 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<BenchmarkRe
   // contaminate Task Vision initialization, and sample each static image once because this
   // baseline exists for landmark output comparison rather than performance measurement.
   config.onProgress?.('face-mesh · IMAGE baseline')
-  let faceMeshEngine: Awaited<ReturnType<typeof createFaceMeshEngine>> | undefined
+  let faceMeshEngine: BenchmarkEngine | undefined
   try {
+    const { createFaceMeshEngine } = await import('./face-mesh-engine')
     faceMeshEngine = await createFaceMeshEngine()
     faceMeshBaseline.supported = true
     faceMeshBaseline.initMs = Math.round(faceMeshEngine.initMs * 100) / 100
