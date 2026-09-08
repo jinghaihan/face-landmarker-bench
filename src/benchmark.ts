@@ -83,24 +83,6 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<BenchmarkRe
     cases: [],
   }
 
-  config.onProgress?.('face-mesh · IMAGE baseline')
-  let faceMeshEngine: Awaited<ReturnType<typeof createFaceMeshEngine>> | undefined
-  try {
-    faceMeshEngine = await createFaceMeshEngine()
-    faceMeshBaseline.supported = true
-    faceMeshBaseline.initMs = Math.round(faceMeshEngine.initMs * 100) / 100
-    for (const scenario of scenarios.filter(item => item.compareLandmarks)) {
-      config.onProgress?.(`face-mesh · ${scenario.label}`)
-      faceMeshBaseline.cases.push(await runCase(scenario, faceMeshEngine, config.warmups, config.iterations))
-    }
-  }
-  catch (error) {
-    faceMeshBaseline.error = error instanceof Error ? error.stack || error.message : String(error)
-  }
-  finally {
-    await faceMeshEngine?.close().catch(() => undefined)
-  }
-
   for (const mode of MODES) {
     const modeResult: ModeResult = {
       ...mode,
@@ -135,6 +117,27 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<BenchmarkRe
     if (!modeResult.errors?.length)
       delete modeResult.errors
     modes.push(modeResult)
+  }
+
+  // Face Mesh's older Emscripten runtime mutates main-thread globals. Run it last so it cannot
+  // contaminate Task Vision initialization, and sample each static image once because this
+  // baseline exists for landmark output comparison rather than performance measurement.
+  config.onProgress?.('face-mesh · IMAGE baseline')
+  let faceMeshEngine: Awaited<ReturnType<typeof createFaceMeshEngine>> | undefined
+  try {
+    faceMeshEngine = await createFaceMeshEngine()
+    faceMeshBaseline.supported = true
+    faceMeshBaseline.initMs = Math.round(faceMeshEngine.initMs * 100) / 100
+    for (const scenario of scenarios.filter(item => item.compareLandmarks)) {
+      config.onProgress?.(`face-mesh · ${scenario.label}`)
+      faceMeshBaseline.cases.push(await runCase(scenario, faceMeshEngine, 0, 1))
+    }
+  }
+  catch (error) {
+    faceMeshBaseline.error = error instanceof Error ? error.stack || error.message : String(error)
+  }
+  finally {
+    await faceMeshEngine?.close().catch(() => undefined)
   }
 
   const landmarkComparisons = modes.flatMap(mode => mode.cases.flatMap((testCase) => {
