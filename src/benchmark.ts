@@ -1,7 +1,9 @@
 import type { Scenario } from './scenarios'
-import type { BenchmarkReport, CaseResult, Delegate, ExecutionLocation, ModeId, ModeResult, RunningMode } from './types'
+import type { BenchmarkReport, CaseResult, Delegate, ExecutionLocation, FaceMeshBaselineResult, ModeId, ModeResult, RunningMode } from './types'
 import { MODEL_SHA256, MODEL_SOURCE_URL, MODEL_URL, SDK_VERSION } from './constants'
 import { createEngine } from './engine'
+import { createFaceMeshEngine } from './face-mesh-engine'
+import { compareCase } from './landmark-comparison'
 import { inspectRenderer, summarize } from './metrics'
 import { createScenarios } from './scenarios'
 
@@ -40,12 +42,14 @@ async function runCase(
   const endToEndTimes: number[] = []
   const observedFaces: number[] = []
   const pointCounts = new Set<number>()
+  let landmarkSample: CaseResult['landmarkSample']
   for (let index = 0; index < iterations; index++) {
     const result = await execute(index + warmups)
     inferenceTimes.push(result.inferenceMs)
     endToEndTimes.push(result.endToEndMs)
     observedFaces.push(result.faceCount)
     result.pointCounts.forEach(count => pointCounts.add(count))
+    landmarkSample ||= result.landmarks
   }
   return {
     scenario: scenario.id,
@@ -57,6 +61,7 @@ async function runCase(
     observedFaces,
     stableFaceCount: new Set(observedFaces).size <= 1,
     pointCounts: [...pointCounts].sort((left, right) => left - right),
+    landmarkSample,
     inference: summarize(inferenceTimes),
     endToEnd: summarize(endToEndTimes),
   }
@@ -72,6 +77,29 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<BenchmarkRe
   const assetLoadMs = performance.now() - assetStartedAt
   const scenarios = await createScenarios(config.suite)
   const modes: ModeResult[] = []
+  const faceMeshBaseline: FaceMeshBaselineResult = {
+    id: 'face-mesh',
+    supported: false,
+    cases: [],
+  }
+
+  config.onProgress?.('face-mesh · IMAGE baseline')
+  let faceMeshEngine: Awaited<ReturnType<typeof createFaceMeshEngine>> | undefined
+  try {
+    faceMeshEngine = await createFaceMeshEngine()
+    faceMeshBaseline.supported = true
+    faceMeshBaseline.initMs = Math.round(faceMeshEngine.initMs * 100) / 100
+    for (const scenario of scenarios.filter(item => item.compareLandmarks)) {
+      config.onProgress?.(`face-mesh · ${scenario.label}`)
+      faceMeshBaseline.cases.push(await runCase(scenario, faceMeshEngine, config.warmups, config.iterations))
+    }
+  }
+  catch (error) {
+    faceMeshBaseline.error = error instanceof Error ? error.stack || error.message : String(error)
+  }
+  finally {
+    await faceMeshEngine?.close().catch(() => undefined)
+  }
 
   for (const mode of MODES) {
     const modeResult: ModeResult = {
@@ -109,8 +137,13 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<BenchmarkRe
     modes.push(modeResult)
   }
 
+  const landmarkComparisons = modes.flatMap(mode => mode.cases.flatMap((testCase) => {
+    const baseline = faceMeshBaseline.cases.find(item => item.scenario === testCase.scenario)
+    return baseline ? [compareCase(mode.id, baseline, testCase)] : []
+  }))
+
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     createdAt: new Date().toISOString(),
     sdkVersion: SDK_VERSION,
     model: { url: MODEL_SOURCE_URL, sha256: MODEL_SHA256 },
@@ -122,6 +155,8 @@ export async function runBenchmark(config: BenchmarkConfig): Promise<BenchmarkRe
     },
     config: { suite: config.suite, warmups: config.warmups, iterations: config.iterations },
     assetLoadMs: Math.round(assetLoadMs * 100) / 100,
+    faceMeshBaseline,
     modes,
+    landmarkComparisons,
   }
 }

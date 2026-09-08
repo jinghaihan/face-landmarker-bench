@@ -39,6 +39,7 @@ export async function createMainEngine(
         inferenceMs: performance.now() - detectStartedAt,
         faceCount: output.faceLandmarks.length,
         pointCounts: output.faceLandmarks.map(landmarks => landmarks.length),
+        landmarks: output.faceLandmarks.map(landmarks => landmarks.map(point => ({ x: point.x, y: point.y, z: point.z }))),
       }
       bitmap.close()
       return result

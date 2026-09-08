@@ -29,6 +29,10 @@ test('runs the Face Landmarker benchmark', async ({ page, browserName, browser }
     'main-gpu',
     'main-cpu',
   ])
+  expect(report.faceMeshBaseline.error, report.faceMeshBaseline.error).toBeFalsy()
+  expect(report.faceMeshBaseline.supported).toBe(true)
+  expect(report.faceMeshBaseline.cases.length).toBeGreaterThanOrEqual(suite === 'smoke' ? 3 : 7)
+  expect(report.landmarkComparisons.length).toBeGreaterThan(0)
 
   // Unsupported runtime combinations are benchmark results, not test failures.
   const portrait = report.modes
@@ -38,5 +42,18 @@ test('runs the Face Landmarker benchmark', async ({ page, browserName, browser }
   if (portrait) {
     expect(portrait.observedFaces).toContain(1)
     expect(portrait.pointCounts).toContain(478)
+  }
+
+  const portraitComparisons = report.landmarkComparisons.filter(item => item.scenario === 'portrait-640x360')
+  expect(portraitComparisons.map(item => item.mode).sort()).toEqual([
+    'main-cpu',
+    'main-gpu',
+    'worker-cpu',
+    'worker-gpu',
+  ])
+  for (const comparison of portraitComparisons) {
+    expect(comparison.baselinePointCounts).toContain(478)
+    expect(comparison.taskVisionPointCounts).toContain(478)
+    expect(comparison.comparedPoints).toBeGreaterThanOrEqual(478)
   }
 })

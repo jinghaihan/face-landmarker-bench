@@ -55,6 +55,7 @@ globalThis.onmessage = async ({ data }: MessageEvent<Request>) => {
       inferenceMs: performance.now() - startedAt,
       faceCount: output.faceLandmarks.length,
       pointCounts: output.faceLandmarks.map(landmarks => landmarks.length),
+      landmarks: output.faceLandmarks.map(landmarks => landmarks.map(point => ({ x: point.x, y: point.y, z: point.z }))),
     }
     data.bitmap.close()
     respond({ id: data.id, ok: true, result })

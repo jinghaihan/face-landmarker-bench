@@ -3,6 +3,12 @@ export type ExecutionLocation = 'main' | 'worker'
 export type RunningMode = 'IMAGE' | 'VIDEO'
 export type ModeId = 'main-cpu' | 'main-gpu' | 'worker-cpu' | 'worker-gpu'
 
+export interface LandmarkPoint {
+  x: number
+  y: number
+  z: number
+}
+
 export interface RendererInfo {
   webgl2: boolean
   vendor?: string
@@ -32,6 +38,7 @@ export interface CaseResult {
   observedFaces: number[]
   stableFaceCount: boolean
   pointCounts: number[]
+  landmarkSample?: LandmarkPoint[][]
   inference: Distribution
   endToEnd: Distribution
 }
@@ -47,8 +54,33 @@ export interface ModeResult {
   errors?: string[]
 }
 
+export interface FaceMeshBaselineResult {
+  id: 'face-mesh'
+  supported: boolean
+  initMs?: number
+  cases: CaseResult[]
+  error?: string
+}
+
+export interface LandmarkComparison {
+  mode: ModeId
+  scenario: string
+  label: string
+  baselineFaces: number
+  taskVisionFaces: number
+  baselinePointCounts: number[]
+  taskVisionPointCounts: number[]
+  matchedFaces: number
+  comparedPoints: number
+  topologyMatches: boolean
+  mean2dPercent?: number
+  p95_2dPercent?: number
+  max2dPercent?: number
+  meanAbsZPercent?: number
+}
+
 export interface BenchmarkReport {
-  schemaVersion: 2
+  schemaVersion: 3
   createdAt: string
   sdkVersion: string
   model: { url: string, sha256: string }
@@ -63,11 +95,14 @@ export interface BenchmarkReport {
   }
   config: { suite: string, warmups: number, iterations: number }
   assetLoadMs: number
+  faceMeshBaseline: FaceMeshBaselineResult
   modes: ModeResult[]
+  landmarkComparisons: LandmarkComparison[]
 }
 
 export interface DetectResult {
   inferenceMs: number
   faceCount: number
   pointCounts: number[]
+  landmarks: LandmarkPoint[][]
 }

@@ -16,11 +16,13 @@ async function findJson(directory) {
 const files = await findJson(inputRoot)
 if (!files.length)
   throw new Error(`No benchmark JSON files found in ${inputRoot}`)
-const reports = await Promise.all(files.map(async (file) => {
+const loadedReports = await Promise.all(files.map(async (file) => {
   const report = JSON.parse(await readFile(file, 'utf8'))
   report.sourceFile = basename(file)
   return report
 }))
+const latestSchemaVersion = Math.max(...loadedReports.map(report => report.schemaVersion || 1))
+const reports = loadedReports.filter(report => report.schemaVersion === latestSchemaVersion)
 
 function environmentName(report) {
   return [
@@ -50,6 +52,11 @@ const rows = reports.flatMap(report => report.modes.flatMap(mode => mode.cases.m
   faces: [...new Set(testCase.observedFaces)].join(','),
   points: testCase.pointCounts.join(','),
 }))))
+
+const landmarkRows = reports.flatMap(report => (report.landmarkComparisons || []).map(comparison => ({
+  environment: environmentName(report),
+  ...comparison,
+})))
 
 const compatibility = reports.flatMap(report => report.modes.map(mode => ({
   environment: environmentName(report),
@@ -154,6 +161,25 @@ const cpuWorkerE2e = median(cpuWorkerPairs)
 const gpuWorkerE2e = median(gpuWorkerPairs)
 const totalWins = modeSummary.reduce((sum, item) => sum + item.wins, 0)
 const leader = [...modeSummary].sort((left, right) => right.wins - left.wins)[0]
+const comparableLandmarks = landmarkRows.filter(row => row.comparedPoints > 0)
+const sameFaceCounts = landmarkRows.filter(row => row.baselineFaces === row.taskVisionFaces).length
+const sameTopology = landmarkRows.filter(row => row.topologyMatches).length
+const exactCoordinates = comparableLandmarks.filter(row => (row.max2dPercent || 0) === 0).length
+const baselineEnvironments = reports.filter(report => report.faceMeshBaseline?.supported).length
+const landmarkModeSummary = modes.map((mode) => {
+  const selected = comparableLandmarks.filter(row => row.mode === mode)
+  return {
+    mode,
+    comparisons: selected.length,
+    sameFaces: landmarkRows.filter(row => row.mode === mode && row.baselineFaces === row.taskVisionFaces).length,
+    total: landmarkRows.filter(row => row.mode === mode).length,
+    topology: landmarkRows.filter(row => row.mode === mode && row.topologyMatches).length,
+    mean2d: median(selected.map(row => row.mean2dPercent).filter(value => value !== undefined)),
+    p95_2d: median(selected.map(row => row.p95_2dPercent).filter(value => value !== undefined)),
+    max2d: selected.length ? Math.max(...selected.map(row => row.max2dPercent || 0)) : undefined,
+    meanZ: median(selected.map(row => row.meanAbsZPercent).filter(value => value !== undefined)),
+  }
+})
 const conclusionLines = [
   totalWins
     ? `**Overall P50 leader:** ${leader.mode} won ${leader.wins}/${totalWins} comparable environment/scenario groups.`
@@ -161,6 +187,11 @@ const conclusionLines = [
   `**Verified hardware GPU:** ${formatSpeedup(mainGpuSpeedup, 'main-gpu', 'main-cpu')} (${mainGpuPairs.length} pairs); ${formatSpeedup(workerGpuSpeedup, 'worker-gpu', 'worker-cpu')} (${workerGpuPairs.length} pairs).`,
   `**Worker end-to-end P95:** ${formatSpeedup(cpuWorkerE2e, 'worker-cpu', 'main-cpu')} (${cpuWorkerPairs.length} pairs); ${formatSpeedup(gpuWorkerE2e, 'worker-gpu', 'main-gpu')} (${gpuWorkerPairs.length} pairs).`,
   `**Measured inference time:** ${modeSummary.map(item => `${item.mode} ${formatDuration(item.total)} across ${item.samples} samples (${item.over50} over 50ms)`).join('; ')}.`,
+  `**Legacy baseline:** Face Mesh ran in ${baselineEnvironments}/${reports.length} environments using the application's former MediaPipe runtime configuration.`,
+  `**Detection compatibility:** face counts matched in ${sameFaceCounts}/${landmarkRows.length} comparisons; landmark topology matched in ${sameTopology}/${landmarkRows.length}.`,
+  comparableLandmarks.length
+    ? `**Coordinate compatibility:** ${exactCoordinates}/${comparableLandmarks.length} comparisons were exactly identical. Across paired faces, the median mean 2D deviation was ${median(comparableLandmarks.map(row => row.mean2dPercent)).toFixed(4)}% of the image diagonal.`
+    : '**Coordinate compatibility:** no paired landmark output was available.',
   '**Interpretation:** comparisons are paired within the same runner, browser, scenario, and API. Software or unidentified GPU renderers are excluded from GPU conclusions.',
 ]
 
@@ -188,6 +219,16 @@ const summary = [
   '|---|---:|---:|---|---:|---:|',
   ...modeSummary.map(item => `| ${item.mode} | ${item.measured}/${item.totalEnvironments} | ${item.wins}/${totalWins} | ${formatRelative(item.relative)} (${item.comparisons} pairs) | ${formatDuration(item.total)} / ${item.samples} samples | ${item.over50} |`),
   '',
+  '## Face Mesh vs Task Vision landmarks',
+  '',
+  '| Task Vision mode | Comparisons | Same face count | Same topology | Median mean 2D Δ | Median P95 2D Δ | Worst point Δ | Median mean Z Δ |',
+  '|---|---:|---:|---:|---:|---:|---:|---:|',
+  ...landmarkModeSummary.map(item => `| ${item.mode} | ${item.comparisons} | ${item.sameFaces}/${item.total} | ${item.topology}/${item.total} | ${item.mean2d?.toFixed(4) ?? '—'}% | ${item.p95_2d?.toFixed(4) ?? '—'}% | ${item.max2d?.toFixed(4) ?? '—'}% | ${item.meanZ?.toFixed(4) ?? '—'}% |`),
+  '',
+  '| Environment | Task Vision mode | Image | Faces old/new | Points old/new | Topology | Mean 2D Δ | P95 2D Δ | Max 2D Δ | Mean Z Δ |',
+  '|---|---|---|---:|---:|---|---:|---:|---:|---:|',
+  ...landmarkRows.map(row => `| ${markdownEscape(row.environment)} | ${row.mode} | ${markdownEscape(row.label)} | ${row.baselineFaces}/${row.taskVisionFaces} | ${row.baselinePointCounts.join(',') || '—'}/${row.taskVisionPointCounts.join(',') || '—'} | ${row.topologyMatches ? '✅ same' : '❌ different'} | ${row.mean2dPercent?.toFixed(4) ?? '—'}% | ${row.p95_2dPercent?.toFixed(4) ?? '—'}% | ${row.max2dPercent?.toFixed(4) ?? '—'}% | ${row.meanAbsZPercent?.toFixed(4) ?? '—'}% |`),
+  '',
   '## Compatibility',
   '',
   '| Environment | Mode | Status |',
@@ -207,7 +248,9 @@ const summary = [
 const tableRows = rows.map(row => `<tr><td>${escapeHtml(row.environment)}</td><td>${escapeHtml(row.renderer)} ${row.software ? '<span class="warn">software</span>' : '<span class="ok">hardware</span>'}</td><td>${row.mode}</td><td>${row.scenario}</td><td>${row.api}</td><td>${formatDuration(row.total)}</td><td>${row.p50}</td><td>${row.p95}</td><td>${row.p99}</td><td>${row.max}</td><td>${row.samples.length ? row.over50 : '—'}</td><td>${row.e2eP95}</td><td>${row.faces}</td><td>${row.points || '—'}</td></tr>`).join('')
 const conclusionHtml = conclusionLines.map(line => `<li>${line.replaceAll('**', '')}</li>`).join('')
 const modeRows = modeSummary.map(item => `<tr><td>${item.mode}</td><td>${item.measured}/${item.totalEnvironments}</td><td>${item.wins}/${totalWins}</td><td>${formatRelative(item.relative)} (${item.comparisons} pairs)</td><td>${formatDuration(item.total)} / ${item.samples}</td><td>${item.over50}</td></tr>`).join('')
-const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Face Landmarker benchmark</title><style>body{margin:32px;font:14px system-ui;color:#e5e7eb;background:#090d16}h1{font-size:36px}h2{margin-top:32px}.meta{color:#94a3b8}.summary{padding:16px 24px;border:1px solid #263246;border-radius:12px;background:#111827;line-height:1.7}.wrap{overflow:auto;border:1px solid #263246;border-radius:12px}table{width:100%;border-collapse:collapse}th,td{padding:10px 12px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#111827;color:#93c5fd}.warn,.ok{padding:2px 6px;border-radius:99px;font-size:11px}.warn{color:#fbbf24;background:#422006}.ok{color:#86efac;background:#052e16}details{margin-top:24px}pre{overflow:auto;padding:16px;background:#020617}</style><h1>Face Landmarker benchmark</h1><p class="meta">Generated ${new Date().toISOString()} · ${reports.length} environments · ${rows.length} cases</p><h2>Conclusions</h2><ul class="summary">${conclusionHtml}</ul><h2>Mode summary</h2><div class="wrap"><table><thead><tr><th>Mode</th><th>Environments</th><th>P50 wins</th><th>Relative P50</th><th>Total inference / samples</th><th>&gt;50ms</th></tr></thead><tbody>${modeRows}</tbody></table></div><h2>Measurements</h2><div class="wrap"><table><thead><tr><th>Environment</th><th>Renderer</th><th>Mode</th><th>Scenario</th><th>API</th><th>Total infer</th><th>P50</th><th>P95</th><th>P99</th><th>Max</th><th>&gt;50ms</th><th>P95 E2E</th><th>Faces</th><th>Points</th></tr></thead><tbody>${tableRows}</tbody></table></div><details><summary>Raw aggregate JSON</summary><pre>${escapeHtml(JSON.stringify(reports, null, 2))}</pre></details>`
+const landmarkModeRows = landmarkModeSummary.map(item => `<tr><td>${item.mode}</td><td>${item.comparisons}</td><td>${item.sameFaces}/${item.total}</td><td>${item.topology}/${item.total}</td><td>${item.mean2d?.toFixed(4) ?? '—'}%</td><td>${item.p95_2d?.toFixed(4) ?? '—'}%</td><td>${item.max2d?.toFixed(4) ?? '—'}%</td><td>${item.meanZ?.toFixed(4) ?? '—'}%</td></tr>`).join('')
+const landmarkDetailRows = landmarkRows.map(row => `<tr><td>${escapeHtml(row.environment)}</td><td>${row.mode}</td><td>${escapeHtml(row.label)}</td><td>${row.baselineFaces}/${row.taskVisionFaces}</td><td>${row.baselinePointCounts.join(',') || '—'}/${row.taskVisionPointCounts.join(',') || '—'}</td><td>${row.topologyMatches ? '<span class="ok">same</span>' : '<span class="warn">different</span>'}</td><td>${row.mean2dPercent?.toFixed(4) ?? '—'}%</td><td>${row.p95_2dPercent?.toFixed(4) ?? '—'}%</td><td>${row.max2dPercent?.toFixed(4) ?? '—'}%</td><td>${row.meanAbsZPercent?.toFixed(4) ?? '—'}%</td></tr>`).join('')
+const html = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Face Landmarker benchmark</title><style>body{margin:32px;font:14px system-ui;color:#e5e7eb;background:#090d16}h1{font-size:36px}h2{margin-top:32px}.meta{color:#94a3b8}.summary{padding:16px 24px;border:1px solid #263246;border-radius:12px;background:#111827;line-height:1.7}.wrap{overflow:auto;border:1px solid #263246;border-radius:12px}table{width:100%;border-collapse:collapse}th,td{padding:10px 12px;border-bottom:1px solid #1e293b;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#111827;color:#93c5fd}.warn,.ok{padding:2px 6px;border-radius:99px;font-size:11px}.warn{color:#fbbf24;background:#422006}.ok{color:#86efac;background:#052e16}details{margin-top:24px}pre{overflow:auto;padding:16px;background:#020617}</style><h1>Face Landmarker benchmark</h1><p class="meta">Generated ${new Date().toISOString()} · ${reports.length} environments · ${rows.length} cases</p><h2>Conclusions</h2><ul class="summary">${conclusionHtml}</ul><h2>Task Vision mode summary</h2><div class="wrap"><table><thead><tr><th>Mode</th><th>Environments</th><th>P50 wins</th><th>Relative P50</th><th>Total inference / samples</th><th>&gt;50ms</th></tr></thead><tbody>${modeRows}</tbody></table></div><h2>Face Mesh vs Task Vision landmarks</h2><div class="wrap"><table><thead><tr><th>Task mode</th><th>Comparisons</th><th>Same face count</th><th>Same topology</th><th>Median mean 2D Δ</th><th>Median P95 2D Δ</th><th>Worst point Δ</th><th>Median mean Z Δ</th></tr></thead><tbody>${landmarkModeRows}</tbody></table></div><h2>Landmark comparison details</h2><div class="wrap"><table><thead><tr><th>Environment</th><th>Task mode</th><th>Image</th><th>Faces old/new</th><th>Points old/new</th><th>Topology</th><th>Mean 2D Δ</th><th>P95 2D Δ</th><th>Max 2D Δ</th><th>Mean Z Δ</th></tr></thead><tbody>${landmarkDetailRows}</tbody></table></div><h2>Task Vision measurements</h2><div class="wrap"><table><thead><tr><th>Environment</th><th>Renderer</th><th>Mode</th><th>Scenario</th><th>API</th><th>Total infer</th><th>P50</th><th>P95</th><th>P99</th><th>Max</th><th>&gt;50ms</th><th>P95 E2E</th><th>Faces</th><th>Points</th></tr></thead><tbody>${tableRows}</tbody></table></div><details><summary>Raw aggregate JSON</summary><pre>${escapeHtml(JSON.stringify(reports, null, 2))}</pre></details>`
 
 await mkdir(outputRoot, { recursive: true })
 await writeFile(join(outputRoot, 'summary.md'), summary)

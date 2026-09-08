@@ -7,13 +7,11 @@ export interface Scenario {
   height: number
   runningMode: RunningMode
   expectedFaces?: number
+  compareLandmarks?: boolean
   render: (frame: number) => HTMLCanvasElement
 }
 
-interface Images {
-  portrait: ImageBitmap
-  rotated: ImageBitmap
-}
+type Images = Record<string, ImageBitmap>
 
 function createCanvas(width: number, height: number): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
@@ -59,8 +57,36 @@ function portraitScenario(images: Images, width: number, height: number): Scenar
     height,
     runningMode: 'IMAGE',
     expectedFaces: 1,
+    compareLandmarks: true,
     render: () => {
       drawCover(context(canvas), images.portrait, 0, 0, width, height)
+      return canvas
+    },
+  }
+}
+
+function photoScenario(
+  image: ImageBitmap,
+  id: string,
+  label: string,
+  width: number,
+  height: number,
+  expectedFaces: number,
+): Scenario {
+  const canvas = createCanvas(width, height)
+  return {
+    id,
+    label,
+    width,
+    height,
+    runningMode: 'IMAGE',
+    expectedFaces,
+    compareLandmarks: true,
+    render: () => {
+      const ctx = context(canvas)
+      ctx.fillStyle = '#e5e7eb'
+      ctx.fillRect(0, 0, width, height)
+      drawCover(ctx, image, 0, 0, width, height)
       return canvas
     },
   }
@@ -71,8 +97,16 @@ export async function createScenarios(suite: string): Promise<Scenario[]> {
   const images: Images = {
     portrait: await load('/runtime-assets/fixtures/portrait.jpg'),
     rotated: await load('/runtime-assets/fixtures/portrait_rotated.jpg'),
+    business: await load('/runtime-assets/fixtures/business-person.png'),
+    closeup: await load('/runtime-assets/fixtures/face-stylizer.png'),
+    twoPeople: await load('/runtime-assets/fixtures/man-woman-okay.jpg'),
+    occluded: await load('/runtime-assets/fixtures/woman-hands.jpg'),
   }
   const portrait = portraitScenario(images, 640, 360)
+  const business = photoScenario(images.business, 'business-person-451x640', 'Business portrait', 451, 640, 1)
+  const closeup = photoScenario(images.closeup, 'closeup-256x256', 'Close-up portrait', 256, 256, 1)
+  const twoPeople = photoScenario(images.twoPeople, 'two-people-640x426', 'Two people', 640, 426, 2)
+  const handsOccluded = photoScenario(images.occluded, 'hands-occluded-427x640', 'Hands occluding face', 427, 640, 1)
   const blankCanvas = createCanvas(640, 360)
   const blank: Scenario = {
     id: 'no-face-640x360',
@@ -92,7 +126,7 @@ export async function createScenarios(suite: string): Promise<Scenario[]> {
     },
   }
   if (suite === 'smoke')
-    return [portrait, blank]
+    return [portrait, business, twoPeople, blank]
 
   const rotatedCanvas = createCanvas(640, 360)
   const rotated: Scenario = {
@@ -101,6 +135,7 @@ export async function createScenarios(suite: string): Promise<Scenario[]> {
     width: 640,
     height: 360,
     runningMode: 'IMAGE',
+    compareLandmarks: true,
     render: () => {
       drawCover(context(rotatedCanvas), images.rotated, 0, 0, 640, 360)
       return rotatedCanvas
@@ -159,5 +194,18 @@ export async function createScenarios(suite: string): Promise<Scenario[]> {
     },
   }
 
-  return [portraitScenario(images, 320, 180), portrait, portraitScenario(images, 1280, 720), blank, rotated, occluded, twoFaces, motion]
+  return [
+    portraitScenario(images, 320, 180),
+    portrait,
+    portraitScenario(images, 1280, 720),
+    business,
+    closeup,
+    twoPeople,
+    handsOccluded,
+    blank,
+    rotated,
+    occluded,
+    twoFaces,
+    motion,
+  ]
 }

@@ -1,6 +1,6 @@
 # face-landmarker-bench
 
-Cross-platform browser benchmark for MediaPipe Face Landmarker. It measures all four execution combinations:
+Cross-platform browser benchmark for MediaPipe Face Landmarker. It compares the application's former `@tensorflow-models/face-landmarks-detection` MediaPipe Face Mesh runtime with all four Task Vision execution combinations:
 
 - Worker + GPU
 - Worker + CPU
@@ -31,14 +31,14 @@ BENCHMARK_SUITE=full BENCHMARK_ITERATIONS=30 pnpm test:benchmark -- --project=ch
 
 ## Scenarios
 
-The smoke suite covers a 640×360 portrait and a synthetic no-face frame. The full suite adds:
+The smoke suite covers three different Google MediaPipe photos (single face, business portrait, and two people) plus a synthetic no-face frame. The full suite adds:
 
 - 320×180, 640×360, and 1280×720 inputs
-- rotated and occluded portraits
+- close-up, rotated, and hands-occluded portraits
 - a synthetic two-face composite
 - synthetic motion using the `VIDEO` API
 
-Every run records initialization time, inference and end-to-end P50/P95/P99, observed face counts, landmark counts, browser details, and the WebGL renderer.
+Every run records initialization time, inference and end-to-end P50/P95/P99, observed face counts, landmark counts, browser details, and the WebGL renderer. For each real image, faces are matched by centroid and all 478 indexed landmarks are compared. Reports include mean, P95, and maximum 2D coordinate deviation as a percentage of the image diagonal, plus mean Z deviation.
 
 ## CI reports
 

@@ -20,7 +20,9 @@
     "report": "node scripts/build-report.mjs"
   },
   "dependencies": {
-    "@mediapipe/tasks-vision": "1.0.1"
+    "@mediapipe/face_mesh": "0.4.1633559619",
+    "@mediapipe/tasks-vision": "1.0.1",
+    "@tensorflow-models/face-landmarks-detection": "1.0.6"
   },
   "devDependencies": {
     "@octohash/eslint-config": "0.6.1",
